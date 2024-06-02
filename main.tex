@@ -30,6 +30,8 @@ Ce projet reprend le travail de threading des widgets de Orange Textable effectu
 
 \section{Introduction}
 
+\subsection{Contexte}
+
 \href{http://textable.io/}{Textable} est un add-on du logiciel \href{https://orangedatamining.com/}{Orange} qui permet d'analyser des textes de manière visuelle \footnote{Xanthos, Aris (2014). Textable: programmation visuelle pour l’analyse de données textuelles. In Actes des 12èmes Journées internationales d’analyse statistique des données textuelles (JADT 2014), pp. 691-703. \href{http://lexicometrica.univ-paris3.fr/jadt/jadt2014/01-ACTES/57-JADT2014.pdf}{Read online}}. Textable est composé de widgets développés en Python et qui ont récemment été modifiés par Antonin Schnyder pour optimiser leur processus. En effet, l'interface des widgets se bloque pendant les traitements de données conséquents et leurs performances peuvent être optimisées, c'est pourquoi Antonin Schnyder a modifié ces widgets pour ajouter une logique de \textit{threading} \footnote{À ce sujet voir \href{https://realpython.com/intro-to-python-threading/}{An Intro to Threading in Python}.} qui suit les recommandations de Orange \footnote{Le tutoriel de Orange à ce propos est disponible \href{https://orange3.readthedocs.io/projects/orange-development/en/latest/tutorial-responsive-gui.html}{ici}.}.\newline
 
 Dans ce travail, nous proposons de partir du travail effectué par Antonin Schnyder en remontant d'un étage – dans la hiérarchie de classes de Textable – la logique de threading. Nous avons identifié qu'une grande partie du code qui permet la mise en place du threading se répète dans les widgets, nous avons donc modifié  leur architecture pour faire en sorte que les éléments liés au \textit{threading} soient hérités au travers de la super-classe \textbf{OWTaxtableBaseWidget}.
@@ -80,12 +82,12 @@ for tree={
     },
     before computing xy={l=15pt},
 }
-[textable
-    [init.py]
-    [pycache]
+[\_textable
+    [\_\_init\_\_.py]
+    [\_\_pycache\_\_]
     [widgets
-        [init.py]
-        [pycache]
+        [\_\_init\_\_.py]
+        [\_\_pycache\_\_]
         [icons]
         [OWTextableCategory.py]
         [...]
@@ -100,7 +102,7 @@ Pour bien comprendre la structure de \textit{Textable} nous allons commencer par
 
 \vspace{5mm}
 
-\begin{figure}[h]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.25\textwidth]{structure_utils.png}
     \caption{Structure de \texttt{TextableUtils.py}}
@@ -125,21 +127,21 @@ La structure générale peut varier selon les widgets mais nous avons ici les é
 Nous avons commencé – sur recommandation d'Aris Xantos – par analyser les deux widgets \texttt{Count} et \texttt{Preprocess} car ils sont assez représentatifs de deux types de widgets courants dans \textit{Textable}. Nous avons donc systématiquement repérés tous les éléments liés au \textit{threading} pour ensuite évaluer s'ils étaient remontables dans la classe parente \textbf{OWTextableBaseWidget} ou non. Dans la suite de cette section, nous adopterons les convention suivantes : 
 
 \begin{itemize}
-    \item \texttt{NomDuWidgetThread} pour nommer la version du widget développée par Antonin Schnyder (par exemple \texttt{ConvertThread} dans le cas du widget \texttt{Convert})
-    \item \texttt{NomDuWidgetThreadJohan} pour nommer la version développée dans le cadre de ce rapport (par exemple \texttt{PreprocessThreadJohan} dans le cas de \texttt{Preprocess})
+    \item \texttt{Nom\_Du\_Widget\_Thread} pour nommer la version du widget développée par Antonin Schnyder (par exemple \texttt{ConvertThread} dans le cas du widget \texttt{Convert})
+    \item \texttt{Nom\_Du\_Widget\_ThreadJohan} pour nommer la version développée dans le cadre de ce rapport (par exemple \texttt{PreprocessThreadJohan} dans le cas de \texttt{Preprocess})
     \item \mint{python}|#...|pour représenter une ellipse dans un extrait de code
 \end{itemize}
 
 \subsection{Méthodes et attributs remontés mais non-modifiés}
 
-Nous allons ici mentionner tous les éléments présents dans les widgets créés par Antonin Schnyder qui ont pu être déplacés dans \texttt{TextableUtils.py} sans modifications particulières. Nous fournirons aussi l'extrait de code déplacé.
+Nous allons ici étudier tous les éléments présents dans les widgets créés par Antonin Schnyder qui ont pu être déplacés dans \texttt{TextableUtils.py} sans modifications particulières. Nous fournirons aussi l'extrait de code déplacé.
 
 \subsubsection{Signaux et slots}
 
-Pour afficher certaines informations sur l'interface (par exemple des messages dans l'\texttt{InfoBox} ou l'avancée de la \texttt{PrograssBar}) pendant le processus d'un widget \textit{threadé}, il est nécessaire de définir des signaux (comme \textit{attributs de classe}) et de les connecter à des slots, ce qui permettra aux \textit{worker threads} de communiquer avec l'interface du widget d'une manière \textit{thread safe} (i.e. qui prend en compte l'exécution des \textit{threads} et qui ne tente pas de forcer l'\textit{l'update} de l'UI). 
+Pour afficher certaines informations sur l'interface (par exemple des messages dans l'\texttt{InfoBox} ou l'avancée de la \texttt{ProgressBar}) pendant le processus d'un widget \textit{threadé}, il est nécessaire de définir des signaux (comme \textit{attributs de classe}) et de les connecter à des slots (qui sont des méthodes qui seront explicitées dans la prochaine section), ce qui permettra aux \textit{worker threads} de communiquer avec l'interface du widget d'une manière \textit{thread safe} (i.e. qui prend en compte l'exécution des \textit{threads} et qui ne tente pas de forcer l'\textit{update} de l'UI). 
 \newline
 
-Exemple du code présent dans le widget \texttt{CategoryThread}:
+Prenons par exemple du code présent dans le widget \texttt{CategoryThread}:
 
 
 \begin{minted}{python}
@@ -169,7 +171,7 @@ Exemple du code présent dans le widget \texttt{CategoryThread}:
 \end{minted}
 
 Tous les widgets n'ont pas forcément besoin de tous les signaux \footnote{À ce sujet voir le \href{https://docs.google.com/document/d/1QtXm2aYMZXAyM7mfBTqxt_XrTNFqC7e3aqy7OC1A_18/edit}{tutoriel} D'antonin Schnyder.}, nous avons pourtant décidé de remonter les trois signaux comme attributs de la classe \textbf{OWTextableBaseWidget} en partant du principe que de faire hériter les trois signaux à tous les widgets ne crée pas de problème particulier et permet de standardiser le code de tous les widgets. 
-
+\newline
 Le résultat est donc le code suivant dans \texttt{TextableUtils.py} : 
 
 \begin{minted}{python}
@@ -204,9 +206,81 @@ Le résultat est donc le code suivant dans \texttt{TextableUtils.py} :
             self.signal_cancel_button.connect(self.disable_cancel_button)
 \end{minted}
 
+\subsubsection{Méthodes liées aux signaux}
+
+Lorsqu'un signal est émis depuis un \textit{thread} (par exemple pour faire avancer la \texttt{ProgressBar}),  le \textit{slot} – une méthode particulière reliée au signal et décorée par \texttt{@pyqtSlot()} – correspondant est appelé. Dans la version des widgets d'Antonin Schnyder il était nécessaire de définir autant de slots que de signaux.
+\newline
+Exemple de slot pour mettre à jour la \texttt{ProgressBar}:
+
+\begin{minted}{python}
+    @pyqtSlot(int, bool)
+    def update_progress_bar(self, val, init):
+        """ Update progress bar in a thread-safe manner """
+        # Re-init progress bar, if needed
+        if init:
+            self.progressBarInit()
+        
+        # Update progress bar
+        if val >= 100:
+            self.progressBarFinished() # Finish progress bar     
+        elif val < 0:
+            self.progressBarSet(0)
+        else:
+            self.progressBarSet(val)
+\end{minted}
+
+Comme dans le cas de signaux, nous avons décidé de remonter les trois slots \texttt{update\_progress\_bar}, \texttt{update\_infobox} et \texttt{disable\_cancel\_button} dans \texttt{TextableUtils.py} même s'ils ne sont pas tous utilisés par chaque widget. En remontant ces éléments, nous fournissons aussi une toolbox pour la création de futures widgets, avec les signaux et slots correspondants déjà implémentés dans la classe \textbf{OWTextableBaseWidget}.
+\subsubsection{\texttt{Task} et \texttt{ThreadExecutor}}
+
+Tous les widgets ont à la fin de leur constructeur la série de trois opérations suivante : 
+
+\begin{minted} {python}
+
+    # Threading
+    self._task = None
+    self._executor = ThreadExecutor()
+    self.cancel_operation = False
+
+\end{minted}
+
+Ces opérations permettent de gérer les \textit{threads} et de définir la \textit{variable d'instance} \texttt{cancel\_operation} qui est utilisée pour annuler le processus d'un widget. Elle ont été remontée dans le constructeur de la classe \textbf{OWTextableBaseWidget} : 
+
+\begin{minted}{python}
+    class OWTextableBaseWidget(widget.OWWidget):
+        # ...
+        
+        def __init__(self, *args, **kwargs):
+
+            """Initialize a Category widget"""
+
+            # ...
+
+            # Threading
+            self._task = None  # type: Optional[Task]
+            self._executor = ThreadExecutor()
+            self.cancel_operation = False
+
+            # Connect signals to slots
+            self.signal_prog.connect(self.update_progress_bar) 
+            self.signal_text.connect(self.update_infobox)
+            self.signal_cancel_button.connect(self.disable_cancel_button)
+\end{minted}
+
+\subsubsection{Méthode \texttt{cancel\_manually()}}
+
+La méthode \texttt{cancel\_manually()} était présente à l'identique dans tous les widgets \textit{threadés}, nous l'avons donc simplement remontée comme méthoe de la classe \textbf{OWTextableBaseWidget}. Cette méthode est un \textit{wrappper} de la méthode \texttt{cancel()} qui est appelée lorsque l'utilisateur.ice appuie sur bouton "cancel".
+
+\begin{minted}{python}
+    def cancel_manually(self):
+        """ Wrapper of cancel() method,
+        used for manual cancellations """
+        self.cancel(manualCancel=True)
+\end{minted}
 
 
 \subsection{Méthodes et attributs remontés et modifiés}
+
+Dans cette sections, nous détaillerons les éléments que nous avons identifiés comme remontables mais qui ont demandé des modifications pour être implémentés dans la classe \textbf{OWTextableBaseWudget}.
 
 \section{Implémentation}
 
@@ -217,42 +291,9 @@ Le résultat est donc le code suivant dans \texttt{TextableUtils.py} :
 \section{Prochaines étapes}
 
 \section{Conclusion}
+en gros on a tout remonté lol
 
 \section{Références}
 
-\begin{minted}{python}
-import numpy as np
-    
-def incmatrix(genl1,genl2):
-    m = len(genl1)
-    n = len(genl2)
-    M = None #to become the incidence matrix
-    VT = np.zeros((n*m,1), int)  #dummy variable
-    
-    #compute the bitwise xor matrix
-    M1 = bitxormatrix(genl1)
-    M2 = np.triu(bitxormatrix(genl2),1) 
-
-    for i in range(m-1):
-        for j in range(i+1, m):
-            [r,c] = np.where(M2 == M1[i,j])
-            for k in range(len(r)):
-                VT[(i)*n + r[k]] = 1;
-                VT[(i)*n + c[k]] = 1;
-                VT[(j)*n + r[k]] = 1;
-                VT[(j)*n + c[k]] = 1;
-                
-                if M is None:
-                    M = np.copy(VT)
-                else:
-                    M = np.concatenate((M, VT), 1)
-                
-                VT = np.zeros((n*m,1), int)
-    
-    return M
-\end{minted}
-
-\bibliographystyle{alpha}
-\bibliography{sample}
 
 \end{document}
