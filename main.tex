@@ -129,7 +129,7 @@ Nous avons commencé – sur recommandation d'Aris Xantos – par analyser les d
 \begin{itemize}
     \item \texttt{Nom\_Du\_Widget\_Thread} pour nommer la version du widget développée par Antonin Schnyder (par exemple \texttt{ConvertThread} dans le cas du widget \texttt{Convert})
     \item \texttt{Nom\_Du\_Widget\_ThreadJohan} pour nommer la version développée dans le cadre de ce rapport (par exemple \texttt{PreprocessThreadJohan} dans le cas de \texttt{Preprocess})
-    \item \mint{python}|#...|pour représenter une ellipse dans un extrait de code
+    \item "\textbf{\# ...}" pour représenter une ellipse dans un extrait de code
 \end{itemize}
 
 \subsection{Méthodes et attributs remontés mais non-modifiés}
@@ -277,23 +277,45 @@ La méthode \texttt{cancel\_manually()} était présente à l'identique dans tou
         self.cancel(manualCancel=True)
 \end{minted}
 
+\subsubsection{Importation des modules}
+
 
 \subsection{Méthodes et attributs remontés et modifiés}
 
-Dans cette sections, nous détaillerons les éléments que nous avons identifiés comme remontables mais qui ont demandé des modifications pour être implémentés dans la classe \textbf{OWTextableBaseWudget}.
+Dans cette sections, nous détaillerons les éléments que nous avons identifiés comme remontables mais qui ont demandé des modifications pour être implémentés dans la classe \textbf{OWTextableBaseWidget}.
 
-\section{Implémentation}
+\subsubsection{Méthode \texttt{cancel()}}
+
+\subsubsection{Méthode \texttt{manageGUIVisibility()}}
+
+\subsubsection{Méthode \texttt{sendData()}}
+
+\subsubsection{Méthode \texttt{task\_finished()}}
+
+\subsection{Nouvelles méthodes et nouveaux attributs}
+
+\subsubsection{Méthode \texttt{create\_widgetbox()}}
+
+\subsubsection{Méthode \texttt{sendNoneToOutputs()}}
 
 \section{Problèmes}
+
+On verra si on garde
 
 \section{Tutoriel création de widgets}
 
 \section{Prochaines étapes}
 
+gestion des erreurs
+
+tests et déploiement
+
 \section{Conclusion}
 en gros on a tout remonté lol
 
 \section{Références}
+
+peut-être
 
 
 \end{document}
