@@ -42,7 +42,7 @@ Nous commencerons par discuter rapidement de ce qu'est le \textit{threading} pui
 \subsection{Qu'est-ce que le threading?}
 
 Ce projet n'a pas pour but d'expliquer ce qu'est le \textit{threading} mais il est quand même nécessaire de fournir une explication succincte du concept pour mieux appréhender le travail proposé dans ce rapport.
-L'idée est de répartir le travail entre différent \textit{threads} et de simuler une forme de \textit{multiprocessing}\footnote{Sur la différence entre m\textit{multiprocessing} et \textit{multithreading} voir \href{https://www.geeksforgeeks.org/difference-between-multithreading-vs-multiprocessing-in-python/}{ce lien}.}. À la création de chaque widget, un \textit{main thread} est créé et s'occupera de différents \textit{worker threads} qui seront créés par chaque widget. Le \textit{multithreading} consiste ensuite à faire s'enchaîner l'exécution des \textit{worker threads} pour simuler une sorte de parallélisme des processus. 
+L'idée est de répartir le travail entre différent \textit{threads} et de simuler une forme de \textit{multiprocessing}\footnote{Sur la différence entre m\textit{multiprocessing} et \textit{multithreading} voir \href{https://www.geeksforgeeks.org/difference-between-multithreading-vs-multiprocessing-in-python/}{ce lien}.}. À la création de chaque widget, un \textit{main thread} est créé et s'occupera de différents \textit{worker threads} qui seront créés par chaque widget. Le \textit{multithreading} consiste ensuite à faire s'enchaîner l'exécution des \textit{worker threads} pour simuler une sorte de parallélisme des processus. Dans le cas particulier de \textit{Textable}, les processus qui sont voués à être exécutés dans un \textit{worker thread} sont les appels aux fonctions de \href{https://github.com/axanthos/LTTL}{LTTL} par exemple.
 Ce système permet donc d'améliorer les performances d'un \textit{software} mais aussi dans notre cas précis de permettre à l'\textit{User interface} (UI) de notre widget de ne pas se bloquer pendant ces calculs. Ceci est extrêmement utile en considérant que suivant la taille des corpus analysés avec \textit{Textable}, les calculs peuvent prendre plusieurs minutes, il est donc pratique de pouvoir annuler le processus en cours grâce au bouton \texttt{Cancel} par exemple.
 
 \section{Structure de \textit{Textable} et des widgets}
@@ -279,14 +279,218 @@ La méthode \texttt{cancel\_manually()} était présente à l'identique dans tou
 
 \subsubsection{Importation des modules}
 
+Comme nous avons déplacé la plupart des éléments en lien avec le \textit{threading} nous devons aussi modifier les importations de modules au début de chaque widget et de \texttt{TextableUtils.py} pour faire en sorte que tout fonctionne correctement.
+
+Chaque widget conserve donc l'importation suivante ajoutée par Antonin Schnyder : 
+
+\begin{minted}{python}
+    from functools import partial
+\end{minted}
+
+Elle sera utilisée plus bas dans ce travail pour les processus principaux des widgets.
+
+\texttt{TextableUtils.py} récupère quant à lui des importations suivantes en lien avec le threading:
+
+\begin{minted}{python}
+    # Threading
+    from AnyQt.QtCore import QThread, pyqtSlot, pyqtSignal
+    from Orange.widgets.utils.concurrent import ThreadExecutor, FutureWatcher
+\end{minted}
+
+
 
 \subsection{Méthodes et attributs remontés et modifiés}
 
-Dans cette sections, nous détaillerons les éléments que nous avons identifiés comme remontables mais qui ont demandé des modifications pour être implémentés dans la classe \textbf{OWTextableBaseWidget}.
+Dans cette section, nous détaillerons les éléments que nous avons identifiés comme remontables mais qui ont demandé des modifications pour être implémentés dans la classe \textbf{OWTextableBaseWidget}.
 
 \subsubsection{Méthode \texttt{cancel()}}
 
-\subsubsection{Méthode \texttt{manageGUIVisibility()}}
+La méthode \texttt{cancel()} est appelée lorsque l'utilisateur.ice annulle l'opération en cours. Le but de cette fonction est de :
+\vspace{5mm}
+\begin{itemize}
+    \item Annuler les boucles de calculs en cours dans le \textit{thread} correspondant
+    \item Annuler la tâche (du \textit{thread} en cours)
+    \item Déconnecter la tâche du \textit{slot} qui surveille sa complétion \footnote{Nous reviendrons sur ce point dans les sections consacrées à \texttt{sendData()} et \texttt{task\_finished()}.}
+    \item Envoyer "None" dans tous les \textit{outputs} du widget
+    \item Envoyer un message d'annulation à l'utilisateur.ice
+    \item Rendre l'UI du widget à nouveau modifiable \footnote{Nous reviendrons sur ce point dans la section sur \texttt{manageGuiVisibility()}.}
+\end{itemize}
+
+Dans le cas du widget \texttt{CountThread}, la méthode \texttt{cancel()} se présente comme suit:
+
+\begin{minted}{python}
+    def cancel(self, manualCancel=False):
+        # Make loop break in LTTL/ProcessorThread.py 
+        self.cancel_operation = True
+
+        # Cancel current task
+        if self._task is not None:
+            self._task.cancel()
+            assert self._task.future.done()
+            
+            # Disconnect slot
+            self._task.watcher.done.disconnect(self._task_finished)
+            self._task = None
+            
+            # Send None to output 
+            self.send('Textable pivot crosstab', None) # AS 10.2023: removed self
+            self.send('Orange table', None) # AS 10.2023: removed self
+
+        # If cancelled manually
+        if manualCancel:
+            self.infoBox.setText(u'Operation cancelled by user.', 'warning')
+
+        # Manage GUI visibility
+        self.manageGuiVisibility(False) # Processing done/cancelled
+\end{minted}
+
+Comme cet extrait de code était présent dans tous les widgets presque à l'identique, nous avons rapidement identifié qu'il devait être remonté. Pourtant un élément posait problème : les widgets n'ayant pas tous les mêmes \textit{outputs}, la partie qui envoie "None" à ces derniers n'est pas identique.
+
+Par exemple dans le cas du widget \texttt{SelectThread}:
+
+\begin{minted}{python}
+    # Send None to output 
+    self.send('Selected data', None) # AS 10.2023: removed self
+    self.send('Discarded data', None) # AS 10.2023: removed self
+\end{minted}
+
+Pour remédier à ce problème, nous avons implémenté une nouvelle méthode nommée \texttt{sendNoneToOutputs()} qui envoie automatiquement "None" à chaque output du widget en utilisant l'\textit{attribut de classe} "outputs". Un appel à cette méthode vient donc remplacer les envois individuels à chaque \textit{output}. Le code finalement placé dans \texttt{TextableUtils.py} est comme suit:
+
+\begin{minted}{python}
+    def sendNoneToOutputs(self):
+        # Sends none to all widget outputs
+        for output in self.outputs:
+            self.send(output.name, None)
+
+    # ...
+
+    def cancel(self, manualCancel=False):
+
+        # ...
+            
+            # Send None to output
+            self.sendNoneToOutputs()
+            
+        if manualCancel:
+            self.infoBox.setText(u'Operation cancelled by user.', 'warning')
+            
+        # Manage GUI visibility
+        self.manageGuiVisibility(False) # Processing done/cancelled
+\end{minted}
+
+\subsubsection{Méthodes \texttt{manageGuiVisibility() et \texttt{create\_widgetbox()}}}
+
+La méthode \texttt{manageGuiVisibility()} permet de désactiver ou d'activer certaines parties de l'interface suivant ce que fait le widget (par exemple, les paramètres du widget sont désactivés pendant les calculs, ou encore le bouton \texttt{cancel} est grisé pendant sa phase de configuration). 
+Présente dans chaque widget, elle diffère pourtant selon les occurrences. En effet, les widgets ne sont pas tous construits de la même manière et leur interface peut varier. Il est évident que vu le nombre de lignes redondantes que cette méthode comporte, il était nécessaire de la remonter dans \texttt{TextableUtils.py}.
+\newline
+
+Extrait de la méthode \texttt{manageGuiVisibility.py} dans le widget \texttt{SegmentThread}:
+
+\begin{minted}{python}
+    def manageGuiVisibility(self, processing=False):
+        """ Update GUI and make available (or not) elements
+        while the thread task is running in the background """
+
+        # Thread currently running, freeze the GUI
+        if processing:
+            # Buttons and layout
+            self.sendButton.cancelButton.setDisabled(0) # Cancel: ENABLED
+            self.sendButton.mainButton.setDisabled(1) # Send: DISABLED
+            self.sendButton.autoSendCheckbox.setDisabled(1) # Send automatically: DISABLED
+            self.basicRegexBox.setDisabled(1) # Basic regex box: DISABLED
+            self.regexBox.setDisabled(1) # Regex box (advanced settings): DISABLED
+            self.optionsBox.setDisabled(1) # Option box (advanced settings): DISABLED
+            self.advancedSettings.checkbox.setDisabled(1) # Advanced options checkbox: DISABLED
+
+        # Thread done or not running, unfreeze the GUI
+        else:
+            # If "Send automatically" is disabled, reactivate "Send" button
+            if not self.sendButton.autoSendCheckbox.isChecked():
+                self.sendButton.mainButton.setDisabled(0) # Send: ENABLED
+            # Buttons and layout
+            self.sendButton.cancelButton.setDisabled(1) # Cancel: DISABLED
+            self.sendButton.autoSendCheckbox.setDisabled(0) # Send automatically: ENABLED
+            self.basicRegexBox.setDisabled(0) # Basic regex box: ENABLED
+            self.regexBox.setDisabled(0) # Regex box (advanced settings): ENABLED
+            self.optionsBox.setDisabled(0) # Option box (advanced settings): ENABLED
+            self.advancedSettings.checkbox.setDisabled(0) # Advanced options checkbox: ENABLED
+            self.cancel_operation = False # Restore to default
+            self.signal_prog.emit(100, False) # 100% and do not re-init
+            self.sendButton.resetSettingsChangedFlag()
+            self.updateGUI()
+\end{minted}
+
+Pour remonter cette méthode, nous avons commencé par identifier les parties du code qui se répétaient. Nous avons déterminé que les éléments concernant les parties communes à (presque) tous les widgets était identiques, c'est à dire les éléments concernant : le bouton \texttt{cancel}, le bouton \texttt{main} et la checkbox \texttt{autoSend}. La fin de la méthode, qui remet le widget dans son état initial, est aussi identique.
+Les éléments variants, quant à eux, avaient la particularité d'être tous insérés dans un partie de l'interface du widget nommée "controlArea". Ces éléments représentent des parties particulières de l'UI comme les \texttt{AdvancedSettings} ou l'\texttt{optionsBox}. 
+
+Exemple de déclaration d'un élément variant (ici \texttt{optionsBox}) : 
+
+\begin{minted}{python}
+    # (Advanced) options box...
+        self.optionsBox = gui.widgetBox(
+            widget=self.controlArea,
+            box=u'Options',
+            orientation='vertical',
+            addSpace=False,
+        )
+\end{minted}
+
+La solution que nous avons choisie pour généraliser \texttt{manageGuiVisibility()} est de créer une nouvelle méthode \texttt{create\_widgetbox()} qui fait office de \textit{wrapper} de la méthode originale \texttt{widgetBox} utilisée dans l'exemple ci-dessus. Ce wrapper ajoute l'élément d'UI – au moment de sa création – à une nouvelle variable d' \textit{instance} de \textbf{OWTextableBaseWidget} nommée \texttt{guiElements}. Cette étape nous permet de savoir en tout temps quels éléments de l'UI d'un widget doivent être activer/désactiver dans la méthode \texttt{manageGuiVisibility()}.
+
+Le code alors remonté dans \texttt{TextableUtils.py} se présente comme suit : 
+
+\begin{minted}{python}
+    class OWTextableBaseWidget(widget.OWWidget):
+
+    # ...
+
+        def __init__(self, *args, **kwargs):
+
+        # ...
+
+            # Attribute to handle GUI visibility
+            self.guiElements = []
+
+        # ...
+
+        def manageGuiVisibility(self, processing=False):
+            # Update GUI and make available (or not) elements
+            #while the thread task is running in background
+    
+            # Thread currently running, freeze the GUI
+            if processing:
+                for guiElement in self.guiElements:
+                    if guiElement.__class__.__name__ == "AdvancedSettings":
+                        guiElement.checkbox.setDisabled(1)
+                    else:
+                        guiElement.setDisabled(1)
+    
+                #self.optionsBox.setDisabled(1) # Options: DISABLED
+                self.sendButton.mainButton.setDisabled(1) # Send button: DISABLED
+                self.sendButton.cancelButton.setDisabled(0) # Cancel button: ENABLED
+                self.sendButton.autoSendCheckbox.setDisabled(1) # Send automatically: DISABLED
+    
+            # Thread done or not running, unfreeze the GUI
+            else:
+                # If "Send automatically" is disabled, reactivate "Send" button
+                if not self.sendButton.autoSendCheckbox.isChecked():
+                    self.sendButton.mainButton.setDisabled(0) # Send: ENABLED
+                # Other buttons and layout
+                for guiElement in self.guiElements:
+                    if guiElement.__class__.__name__ == "AdvancedSettings":
+                        guiElement.checkbox.setDisabled(0)
+                    else:
+                        guiElement.setDisabled(0)
+                #self.optionsBox.setDisabled(0) # Options: ENABLED
+                self.sendButton.cancelButton.setDisabled(1) # Cancel button: DISABLED
+                self.sendButton.autoSendCheckbox.setDisabled(0) # Send automatically: ENABLED
+                self.cancel_operation = False
+                self.signal_prog.emit(100, False) # 100% and do not re-init
+                self.sendButton.resetSettingsChangedFlag()
+                self.updateGUI()
+\end{minted}
+
+La nouvelle méthode itère donc sur tous les éléments de \texttt{guiElements} pour les activer/ désactiver, avec une gestion spéciale pour le cas de la checkbox des \texttt{Advanced settings}.
 
 \subsubsection{Méthode \texttt{sendData()}}
 
