@@ -492,15 +492,223 @@ Le code alors remonté dans \texttt{TextableUtils.py} se présente comme suit :
 
 La nouvelle méthode itère donc sur tous les éléments de \texttt{guiElements} pour les activer/ désactiver, avec une gestion spéciale pour le cas de la checkbox des \texttt{Advanced settings}.
 
-\subsubsection{Méthode \texttt{sendData()}}
+\subsubsection{Méthodes \texttt{sendData()} et \texttt{threading()}}
+
+La méthode \texttt{sendData()} (à travers les différents widgets) a été grandement modifiée par Antonin Schnyder pour conserver toutes les étapes de vérifications des \textit{inputs} du widget et déléguer tous les calcul à un \textit{worker thread}. Effectivement, cela se traduit par différentes vérifications quant aux \textit{tasks} en cours, puis par le démarrage du threading (Le démarrage du threading relie ici la fonction \texttt{threaded\_function} définie dans \texttt{sendData()} à un \texttt{\_executer} qui s'occupera de la démarrer dés que possible) et l'arrêt de certaines parties de l'interface : 
+
+\begin{minted}{python}
+    def sendData(self):
+        """(Have LTTL.Segmenter) perform the actual tokenization"""
+
+        # ...
+
+        # Threading ...
+        
+        # Cancel old tasks
+        if self._task is not None:
+            self.cancel()
+        assert self._task is None
+
+        self._task = task = Task()
+        
+        # ...
+
+        # Restore to default
+        self.cancel_operation = False
+
+        # Threading start, future, and watcher
+        task.future = self._executor.submit(threaded_function)
+        task.watcher = FutureWatcher(task.future)
+        task.watcher.done.connect(self._task_finished)
+
+        # Manage GUI visibility
+        self.manageGuiVisibility(True) # Processing
+\end{minted}
+
+Nous avons remplacé ces bouts de codes redondants par l'appel à une nouvelle méthode de \texttt{TextableUtils.py} nommée \texttt{threading()} qui centralises ces diverses étapes.
+
+Le code ci-dessus est donc remplacé par : 
+
+\begin{minted}{python}
+    # Threading ...
+        self.threading(threaded_function)
+\end{minted}
+
+La méthode \texttt{threading()} est implémentée dans \texttt{TextableUtils.py} : 
+
+\begin{minted}{python}
+    def threading(self, threaded_function):
+        """ Checks for tasks and start threading"""
+
+        # Threading ...
+
+        # Cancel old tasks
+        if self._task is not None:
+            self.cancel()
+        assert self._task is None
+
+        self.cancel_operation = False
+
+        self._task = task = Task()
+        
+        # Threading start, future, and watcher
+        task.future = self._executor.submit(threaded_function)
+        task.watcher = FutureWatcher(task.future)
+        task.watcher.done.connect(self.task_finished)
+        
+        # Manage GUI visibility
+        self.manageGuiVisibility(True) # Processing
+\end{minted}
 
 \subsubsection{Méthode \texttt{task\_finished()}}
 
-\subsection{Nouvelles méthodes et nouveaux attributs}
+Cette méthode est sans aucun doute la partie la plus complexe de ce travail. Dans la version des widgets d'Antonin Schnyder, la méthode \texttt{sendData()} connectait le résultat du processus de la \texttt{threaded\_function} à un \textit{slot} exécutant une méthode nommée \texttt{\_task\_finished()} qui était chargée de traiter les données des processus du widget et des les envoyer aux différents \textit{outputs}. Cette méthode se présentait par exemple dans le cas de \texttt{SegmentThread} de la manière suivante : 
 
-\subsubsection{Méthode \texttt{create\_widgetbox()}}
+\begin{minted}{python}
+    @pyqtSlot(concurrent.futures.Future)
+    def _task_finished(self, f):
+        assert self.thread() is QThread.currentThread()
+        assert self._task is not None
+        assert self._task.future is f
+        assert f.done()
 
-\subsubsection{Méthode \texttt{sendNoneToOutputs()}}
+        self._task = None
+
+        try:
+            # Data outputs
+            try:
+                segmented_data = f.result()
+            # If operation was started again while processing,
+            # f.result() is None and it raises a TypeError
+            except TypeError:
+                self.infoBox.setText(
+                    u'Operation was cancelled.',
+                    'warning'
+                )
+                self.send('Segmented data', None)
+                self.manageGuiVisibility(False) # Processing done/cancelled!
+                return
+
+            # Processing results
+            message = u'%i segment@p sent to output.' % len(segmented_data)
+            message = pluralize(message, len(segmented_data))
+            self.infoBox.setText(message)
+            self.send('Segmented data', segmented_data) # AS 10.2023: removed self
+
+        except IndexError:
+            self.infoBox.setText(
+                u'Reference to unmatched group in annotation key and/or value.',
+                'error'
+            )
+            self.send('Segmented data', None) # AS 10.2023: removed self
+
+        except Exception as ex:
+            print(ex)
+        
+            self.infoBox.setText(
+                u'Error while segmenting. Please verify your settings.',
+                'error'
+            )
+            self.send('Segmented data', None) # AS 10.2023: removed self
+
+        # Manage GUI visibility
+        self.manageGuiVisibility(False) # Processing done/cancelled!
+\end{minted}
+
+Nous pouvons donc repérer :
+\begin{itemize}
+    \item Une série d'assertion pour vérifier que le traitement est bien terminé
+    \item Un \texttt{try} qui essaie de récupérer les résultats des processus et de les envoyer aux \textit{outputs}
+    \item Un \texttt{except} qui gère les erreurs possibles à la fin du traitement
+    \item Un appel à \texttt{manageGuiVisibility()} pour réactiver l'interface du widget
+\end{itemize}
+
+Or, en observant les différentes méthodes décorées \footnote{Au sujet des décorateurs Python, vous référer à \href{https://www.geeksforgeeks.org/decorators-in-python/}{cette page}.} \texttt{\_task\_finished}, nous avons remarqué que les seuls éléments qui différent sont le contenu du premier \texttt{try} ainsi que le type d'erreurs gérées par le \texttt{except}. Nous avons donc décidé, pour pouvoir remonter dans \texttt{TextableUtils.py} une partie de ce code et alléger le contenu des widgets, de créer notre propre décorateur qui permet d'entourer la partie de traitement des données (propre à chaque widgets) des textes et gestions d'erreurs assez généraux. Ce décorateur est hérité de \textbf{OWTextableBaseWidget} et permet de conserver uniquement la partie de \texttt{\_task\_finished} concernant le traitement du résultat et l'envoi aux \textit{outputs} dans le widget.
+
+Concrètement, la méthode \texttt{\_task\_finished} du widget est remplacée par une nouvelle méthode \texttt{task\_finished} (sans le premier \textit{underscore}) : 
+
+\begin{minted}{python}
+    @OWTextableBaseWidget.task_decorator
+    def task_finished(self, f):
+        # Data outputs
+        try:
+            segmented_data = f.result()
+        # If operation was started again while processing,
+        # f.result() is None and it raises a TypeError
+        except TypeError:
+            self.infoBox.setText(
+                    u'Operation was cancelled.',
+                    'warning'
+                )
+            self.send('Segmented data', None)
+            self.manageGuiVisibility(False) # Processing done/cancelled!
+            return
+
+        # Processing results
+        message = u'%i segment@p sent to output.' % len(segmented_data)
+        message = pluralize(message, len(segmented_data))
+        self.infoBox.setText(message)
+        self.send('Segmented data', segmented_data) # AS 10.2023: removed self
+\end{minted}
+
+Cette dernière ne contient plus que le traitement des résultats et est décorée par un nouveau décorateur \texttt{task\_decorator} implémenté dans la classe \textbf{OWTextableBaseWidget} : 
+
+\begin{minted}{python}
+    def task_decorator(task_function):
+            """ Decorator for the task_finished function """
+            @pyqtSlot(concurrent.futures.Future)
+            def _task_finished(self, f):
+                assert self.thread() is QThread.currentThread()
+                assert self._task is not None
+                assert self._task.future is f
+                assert f.done()
+
+                self._task = None
+                
+                try:
+                    task_function(self, f)
+                
+                # Exceptions handling for different widgets
+                except ValueError:
+                    self.infoBox.setText(
+                    message=u'Please make sure that input is well-formed XML.',
+                    state='error',
+                    )
+                    self.sendNoneToOutputs()
+                    
+                except IndexError:
+                    self.infoBox.setText(
+                    u'Reference to unmatched group in annotation key and/or value.',
+                    'error'
+                )
+                    self.sendNoneToOutputs()
+
+                except KeyError:
+                    return
+                
+                except re.error as re_error:
+                    try:
+                        message = u'Please enter a valid regex (error: %s).' % \
+                                re_error.msg
+                    except AttributeError:
+                        message = u'Please enter a valid regex.'
+                    self.infoBox.setText(message, 'error')
+                    self.sendNoneToOutputs()
+
+                except Exception as ex:
+                    print(ex)
+                    self.sendNoneToOutputs()
+                    self.infoBox.setText(u'An error occured.', 'error')
+
+                finally:
+                    # Manage GUI visibility
+                    self.manageGuiVisibility(False) # Processing done/cancelled
+            return _task_finished
+\end{minted}
+
+Toute la partie du code relative aux tests et aux gestion d'erreurs est donc remontée dans la classe \textbf{OWTextableBaseWidget} et permet une implémentation plus simple dans le widget.
+\newline
+Il reste cependant un point que nous n'avons pas encore abordé, celui des erreurs. Ces dernières étaient, à l'origine, gérées par chaque widget dans sa méthode \texttt{\_task\_finished} originale. Heureusement, les types d'erreurs de chaque widget étant différents, nous avons pu tous les réunir dans le décorateur \texttt{task\_decorator} en standardisant quelque peu les messages d'erreurs.
 
 \section{Problèmes}
 
