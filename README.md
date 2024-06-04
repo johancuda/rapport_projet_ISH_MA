@@ -2,7 +2,7 @@
 
 Ce projet reprend le travail de threading des widgets du add-on [Textable](http://textable.io/) du logiciel [Orange](https://orangedatamining.com/) effectué par Antonin Schnyder en proposant de remonter l'architecture de threading d'un étage dans la hiérarchie de classes de Textable. 
 
-Ce repository contient les widegets et scripts développés dans le cadre du projet ainsi qu'un rapport détaillé des modifications apportées à Textable.
+Ce repository contient les widgets et scripts développés dans le cadre du projet ainsi qu'un rapport détaillé des modifications apportées à Textable.
 
 ## Installation
 
@@ -25,5 +25,5 @@ Pour tester ces versions des widgets, il vous faut :
 
 ## Crédits
 
-Projet réalisé par Johan Cuda (johan.cuda@unil.ch) sous la supervision de Aris Xantos (aris.xantos@unil.ch) dans le cadre du "Projet en informatique pour les sciences huamines" à l'Université de Lausanne, Section des sciences du langage et de l'information.
+Projet réalisé par Johan Cuda (johan.cuda@unil.ch) sous la supervision de Aris Xantos (aris.xantos@unil.ch) dans le cadre du "Projet en informatique pour les sciences humaines" à l'Université de Lausanne, Section des sciences du langage et de l'information.
 
