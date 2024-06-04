@@ -17,9 +17,9 @@ Pour tester ces versions des widgets, il vous faut :
 
 - `LLTL` : Contient les fichiers LTTL threadés par Antonin Schnyder
 
-- `rapport` : Contient les fichiers du rapport
+- `rapport` : Contient les fichiers du rapport ainsi qu'une version PDF
 
-- `widgets_Johan` : Contient les versions des widgets et de `TextableUtils.py` développés dans le cadre de ce projet
+- `widgets_Johan_Cuda` : Contient les versions des widgets et de `TextableUtils.py` développés dans le cadre de ce projet
 
 
 ## Crédits
