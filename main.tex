@@ -15,6 +15,7 @@
 \usepackage[colorlinks=true, allcolors=blue]{hyperref}
 \usepackage{minted}
 \usepackage{forest}
+\usepackage{caption}
 
 \title{Projet en informatique pour les sciences humaines}
 \author{Johan Cuda}
@@ -32,7 +33,7 @@ Ce projet reprend le travail de \textit{threading} des widgets de Orange Textabl
 
 \subsection{Contexte}
 
-\href{http://textable.io/}{Textable} est un add-on du logiciel \href{https://orangedatamining.com/}{Orange} qui permet d'analyser des textes de manière visuelle \footnote{Xanthos, Aris (2014). Textable: programmation visuelle pour l’analyse de données textuelles. In Actes des 12èmes Journées internationales d’analyse statistique des données textuelles (JADT 2014), pp. 691-703. \href{http://lexicometrica.univ-paris3.fr/jadt/jadt2014/01-ACTES/57-JADT2014.pdf}{Read online}}. Il est composé de widgets développés en Python qui ont récemment été modifiés par Antonin Schnyder pour optimiser leur processus. En effet, l'interface des widgets se bloquait pendant les traitements de données et leurs performances pouvaient être optimisées, c'est pourquoi Antonin Schnyder a modifié ces widgets pour ajouter une logique de \textit{threading} \footnote{À ce sujet voir \href{https://realpython.com/intro-to-python-threading/}{An Intro to Threading in Python}.} qui suit les recommandations de Orange \footnote{Le tutoriel de Orange à ce propos est disponible \href{https://orange3.readthedocs.io/projects/orange-development/en/latest/tutorial-responsive-gui.html}{ici}.}.\newline
+\href{http://textable.io/}{Textable} est un add-on du logiciel \href{https://orangedatamining.com/}{Orange} qui permet d'analyser des textes de manière visuelle \footnote{Xanthos, Aris (2014). Textable: programmation visuelle pour l’analyse de données textuelles. In Actes des 12èmes Journées internationales d’analyse statistique des données textuelles (JADT 2014), pp. 691-703. \href{http://lexicometrica.univ-paris3.fr/jadt/jadt2014/01-ACTES/57-JADT2014.pdf}{Read online}}; il est composé de widgets développés en Python qui ont récemment été modifiés par Antonin Schnyder pour optimiser leur processus. En effet, l'interface des widgets se bloquant pendant les traitements de données et leurs performances pouvant être optimisées, Antonin Schnyder a modifié ces widgets pour ajouter une logique de \textit{threading} \footnote{À ce sujet voir \href{https://realpython.com/intro-to-python-threading/}{An Intro to Threading in Python}.} qui suit les recommandations de Orange \footnote{Le tutoriel de Orange à ce propos est disponible \href{https://orange3.readthedocs.io/projects/orange-development/en/latest/tutorial-responsive-gui.html}{ici}.}.\newline
 
 Dans ce travail, nous proposons de partir du travail effectué par Antonin Schnyder en remontant d'un étage – dans la hiérarchie de classes de Textable – la logique de \textit{threading}. Nous avons identifié qu'une grande partie du code qui permet la mise en place du \textit{threading} se répète dans les widgets, nous avons donc modifié  leur architecture pour faire en sorte que les éléments liés au \textit{threading} soient hérités au travers de la super-classe \textbf{OWTextableBaseWidget}.
 \newline
@@ -42,8 +43,8 @@ Nous commencerons par discuter rapidement de ce qu'est le \textit{threading}, pu
 \subsection{Qu'est-ce que le \textit{threading}?}
 
 Ce projet n'a pas pour but d'expliquer ce qu'est le \textit{threading} mais il est quand même nécessaire de fournir une explication succincte du concept pour mieux appréhender le travail proposé dans ce rapport.
-L'idée est de répartir le travail entre différent \textit{threads} et de simuler une forme de \textit{multiprocessing}\footnote{Sur la différence entre m\textit{multiprocessing} et \textit{multithreading} voir \href{https://www.geeksforgeeks.org/difference-between-multithreading-vs-multiprocessing-in-python/}{ce lien}.}. À la création de chaque widget, un \textit{main thread} est créé et s'occupera de différents \textit{worker threads} qui seront créés par chaque widget. Le \textit{multithreading} consiste ensuite à faire s'enchaîner l'exécution des \textit{worker threads} pour simuler une sorte de parallélisme des processus. Dans le cas particulier de \textit{Textable}, les processus qui sont voués à être exécutés dans un \textit{worker thread} sont les appels aux fonctions de \href{https://github.com/axanthos/LTTL}{LTTL} par exemple.
-Ce système permet donc d'améliorer les performances d'un \textit{software} mais aussi dans notre cas précis de permettre à l'\textit{User interface} (UI) de notre widget de ne pas se bloquer pendant ses calculs. Ceci est extrêmement utile en considérant que suivant la taille des corpus analysés avec \textit{Textable}, les calculs peuvent prendre plusieurs minutes, il est donc pratique de pouvoir annuler le processus en cours grâce au bouton \texttt{Cancel} par exemple.
+Le \textit{threading} répartit le travail entre différents \textit{threads} et de simule une forme de \textit{multiprocessing}\footnote{Sur la différence entre m\textit{multiprocessing} et \textit{multithreading} voir \href{https://www.geeksforgeeks.org/difference-between-multithreading-vs-multiprocessing-in-python/}{ce lien}.}. À la création de chaque widget, un \textit{main thread} est créé et s'occupera de différents \textit{worker threads} qui seront créés par chaque widget. Le \textit{multithreading} consiste ensuite à faire s'enchaîner l'exécution des \textit{worker threads} pour simuler une sorte de parallélisme des processus. Dans le cas particulier de \textit{Textable}, les processus qui sont voués à être exécutés dans un \textit{worker thread} sont les appels aux fonctions de \href{https://github.com/axanthos/LTTL}{LTTL} par exemple.
+Ce système permet donc d'améliorer les performances d'un \textit{software} mais aussi dans notre cas précis de permettre à l'\textit{User interface} (UI) de notre widget de ne pas se bloquer pendant ses calculs. Ceci est extrêmement utile en considérant que suivant la taille des corpus analysés avec \textit{Textable}, les calculs peuvent prendre du temps, il est donc pratique de pouvoir annuler le processus en cours grâce au bouton \texttt{Cancel} par exemple.
 
 \section{Structure de \textit{Textable} et des widgets}
 
@@ -52,53 +53,59 @@ Ce système permet donc d'améliorer les performances d'un \textit{software} mai
 \textit{Textable} peut être visulisé de la manière suivante :
 \vspace{5mm}
 
-\fbox{%
-\begin{forest}
-for tree={
-    font=\ttfamily,
-    grow'=0,
-    child anchor=west,
-    parent anchor=south,
-    anchor=west,
-    calign=first,
-    edge path={
-        \noexpand\path [draw, \forestoption{edge}]
-        (!u.south west) +(5pt,0) |- (.child anchor)\forestoption{edge label};
-    },
-    inner sep=1pt,
-    l=1cm,
-    s sep=2mm,
-    edge+={darkgray, line width=0.5pt},
-    if level=0{
-        align=center,
-    }{%
-        if level=1{font=\bfseries}{}% folder level
-    },
-    fit=band,
-    before typesetting nodes={
-        if n=1
-            {insert before={[,phantom]}}
-            {}
-    },
-    before computing xy={l=15pt},
-}
-[\_textable
-    [\_\_init\_\_.py]
-    [\_\_pycache\_\_]
-    [widgets
+
+\begin{figure}[h]
+    \centering
+    \fbox{%
+    \begin{forest}
+    for tree={
+        font=\ttfamily,
+        grow'=0,
+        child anchor=west,
+        parent anchor=south,
+        anchor=west,
+        calign=first,
+        edge path={
+            \noexpand\path [draw, \forestoption{edge}]
+            (!u.south west) +(5pt,0) |- (.child anchor)\forestoption{edge label};
+        },
+        inner sep=1pt,
+        l=1cm,
+        s sep=2mm,
+        edge+={darkgray, line width=0.5pt},
+        if level=0{
+            align=center,
+        }{%
+            if level=1{font=\bfseries}{}% folder level
+        },
+        fit=band,
+        before typesetting nodes={
+            if n=1
+                {insert before={[,phantom]}}
+                {}
+        },
+        before computing xy={l=15pt},
+    }
+    [\_textable
         [\_\_init\_\_.py]
         [\_\_pycache\_\_]
-        [icons]
-        [OWTextableCategory.py]
-        [...]
-        [TextableUtils.py]
+        [widgets
+            [\_\_init\_\_.py]
+            [\_\_pycache\_\_]
+            [icons]
+            [OWTextableCategory.py]
+            [...]
+            [TextableUtils.py]
+        ]
     ]
-]
-\end{forest}
-}
+    \end{forest}
+    }
+    \caption{Structure du projet Textable}
+    \label{fig:textable_tree}
+\end{figure}
 \vspace{5mm}
 
-Pour bien comprendre la structure de \textit{Textable} nous allons commencer par considérer le script \texttt{TextableUtils.py} (voir Figure \ref{fig:textable_utils}). Celui-ci contient plusieurs classes qui définissent des éléments utilisables par tous les widgets comme \texttt{InfoBox} ou \texttt{SendButton}. La classe qui nous intéressera le plus sera bien entendu \textbf{OWTextableBaseWidget} : elle est déjà héritée par tous les widgets de \textit{Textable} et a donc été rapidement identifiée comme la classe qui recevrait les modifications relatives au \textit{threading}.
+Pour bien comprendre la structure de \textit{Textable}, nous allons commencer par considérer le script \texttt{TextableUtils.py} (voir Figure \ref{fig:textable_utils}). Celui-ci contient plusieurs classes qui définissent des éléments utilisables par tous les widgets comme \texttt{InfoBox} ou \texttt{SendButton}. La classe qui nous intéressera le plus sera bien entendu \textbf{OWTextableBaseWidget} : contenant les éléments de base nécessaires à tous les widgets de \textit{Textable}, elle est déjà héritée par ceux-ci et a donc été rapidement identifiée comme la classe qui recevrait les modifications relatives au \textit{threading}.
 
 \vspace{5mm}
 
@@ -111,10 +118,10 @@ Pour bien comprendre la structure de \textit{Textable} nous allons commencer par
 
 \subsection{Structure d'un widget type}
 
-Les widgets ont quant à eu une structure assez uniforme et représentent chacun une classe spécifique qui hérite de la classe \textbf{OWTextableBaseWidget} (par exemple chaque widget \texttt{Count} est une instance de la classe \textbf{OWTextableCount}). Ils sont toujours formés des éléments suivants : 
+Les widgets ont une structure assez uniforme et représentent chacun une \textit{classe} spécifique qui hérite de la classe \textbf{OWTextableBaseWidget} (par exemple chaque widget \texttt{Count} est une instance de la classe \textbf{OWTextableCount(OWTextableBaseWidget)}). Ils sont toujours formés des éléments suivants : 
 
 \begin{enumerate}
-    \item Imports divers
+    \item Imports de modules divers
     \item Déclaration d'une série d'\textit{attributs de classes}
     \item Déclaration, dans le constructeur de la classe, de tous les \textit{attributs d'instance} ainsi que des éléments d'interface du widget
     \item Déclaration des diverses méthodes propres au processus du widget
@@ -124,12 +131,13 @@ La structure générale peut varier selon les widgets mais nous avons ici les é
 
 \section{Analyse des widgets et implémentation}
 
-Nous avons commencé – sur recommandation d'Aris Xantos – par analyser les deux widgets \texttt{Count} et \texttt{Preprocess} car ils sont assez représentatifs de deux types de widgets courants dans \textit{Textable}. Nous avons donc systématiquement repéré tous les éléments liés au \textit{threading} dans ces deux widgets pour ensuite évaluer s'ils étaient remontables dans la classe parente \textbf{OWTextableBaseWidget} ou non. Nous avons continué par évaluer si nos observations se prolongeait aux autres widgets. Dans la suite de cette section, nous adopterons les conventions suivantes : 
+Nous avons commencé – sur recommandation d'Aris Xantos – par analyser les deux widgets \texttt{Count} et \texttt{Preprocess}, car ils sont assez représentatifs de deux types de widgets courants dans \textit{Textable}. Nous avons donc systématiquement repéré tous les éléments liés au \textit{threading} dans ces deux widgets pour ensuite évaluer s'ils étaient remontables dans la classe parente \textbf{OWTextableBaseWidget} ou non. Nous avons ensuite étendu notre réflexion aux autres widgets pour finalement trouver des solutions d'implémentation. Dans la suite de cette section, nous adopterons les conventions suivantes : 
 
 \begin{itemize}
-    \item \texttt{Nom\_Du\_Widget\_Thread} pour nommer la version du widget développée par Antonin Schnyder (par exemple \texttt{ConvertThread} dans le cas du widget \texttt{Convert})
-    \item \texttt{Nom\_Du\_Widget\_ThreadJohan} pour nommer la version du widget  développée dans le cadre de ce rapport (par exemple \texttt{PreprocessThreadJohan} dans le cas de \texttt{Preprocess})
+    \item \texttt{NomDuWidgetThread} pour nommer la version du widget développée par Antonin Schnyder (par exemple \texttt{ConvertThread} dans le cas du widget \texttt{Convert})
+    \item \texttt{NomDuWidgetThreadJohan} pour nommer la version du widget  développée dans le cadre de ce rapport (par exemple \texttt{PreprocessThreadJohan} dans le cas de \texttt{Preprocess})
     \item "\textbf{\# ...}" pour représenter une ellipse dans un extrait de code
+    \item "Nous avons donc \textbf{remonté} tel élément..." signifie que nous avons \textit{déplacé} l'élément d'un étage dans la hiérarchie de classes de \textit{Textable}, spécifiquement dans la classe \textbf{OWTextableBaseWidget} de \texttt{TextableUtils.py} 
 \end{itemize}
 
 \subsection{Méthodes et attributs remontés mais non-modifiés}
@@ -172,7 +180,8 @@ Exemple du code présent dans le widget \texttt{CategoryThread}:
 
 Tous les widgets n'ont pas forcément besoin de tous les signaux \footnote{À ce sujet voir le \href{https://docs.google.com/document/d/1QtXm2aYMZXAyM7mfBTqxt_XrTNFqC7e3aqy7OC1A_18/edit}{tutoriel} D'antonin Schnyder.}, nous avons pourtant décidé de remonter les trois signaux comme attributs de la classe \textbf{OWTextableBaseWidget} en partant du principe que de faire hériter les trois signaux à tous les widgets ne crée pas de problème particulier et permet de standardiser le code de tous les widgets. 
 \vspace{5mm}
-Le résultat est donc le code suivant dans \texttt{TextableUtils.py} : 
+
+Le résultat dans \texttt{TextableUtils.py} est donc le code suivant : 
 
 \begin{minted}{python}
     class OWTextableBaseWidget(widget.OWWidget):
@@ -209,7 +218,8 @@ Le résultat est donc le code suivant dans \texttt{TextableUtils.py} :
 \subsubsection{Méthodes liées aux signaux}
 
 Lorsqu'un signal est émis depuis un \textit{thread} (par exemple pour faire avancer la \texttt{ProgressBar}),  le \textit{slot} – une méthode particulière reliée au signal et décorée par \texttt{@pyqtSlot()} – correspondant est appelé. Dans la version des widgets d'Antonin Schnyder, il était nécessaire de définir autant de slots que de signaux.
-\newline
+
+\vspace{5mm}
 Exemple de slot pour mettre à jour la \texttt{ProgressBar}:
 
 \begin{minted}{python}
@@ -229,7 +239,7 @@ Exemple de slot pour mettre à jour la \texttt{ProgressBar}:
             self.progressBarSet(val)
 \end{minted}
 
-Comme dans le cas de signaux, nous avons décidé de remonter les trois slots \texttt{update\_progress\_bar}, \texttt{update\_infobox} et \texttt{disable\_cancel\_button} dans \texttt{TextableUtils.py} même s'ils ne sont pas tous utilisés par chaque widget. En remontant ces éléments, nous fournissons aussi une toolbox pour la création de futures widgets, avec les signaux et slots correspondants déjà implémentés dans la classe \textbf{OWTextableBaseWidget}.
+Comme dans le cas de signaux, nous avons décidé de remonter les trois slots \texttt{update\_progress\_bar}, \texttt{update\_infobox} et \texttt{disable\_cancel\_button} dans \texttt{TextableUtils.py}, même s'ils ne sont pas tous utilisés par chaque widget. En remontant ces éléments, nous fournissons aussi une toolbox pour la création de futures widgets, avec les signaux et slots correspondants déjà implémentés dans la classe \textbf{OWTextableBaseWidget}.
 \subsubsection{\texttt{Task} et \texttt{ThreadExecutor}}
 
 Tous les widgets ont à la fin de leur constructeur la série de trois opérations suivante : 
@@ -355,7 +365,7 @@ Par exemple dans le cas du widget \texttt{SelectThread}:
     self.send('Discarded data', None) # AS 10.2023: removed self
 \end{minted}
 
-Pour remédier à ce problème, nous avons implémenté une nouvelle méthode nommée \texttt{sendNoneToOutputs()} qui envoie automatiquement "None" à chaque output du widget en utilisant l'\textit{attribut de classe} "outputs". Un appel à cette méthode vient donc remplacer les envois individuels à chaque \textit{output}. Le code finalement placé dans \texttt{TextableUtils.py} est comme suit:
+Pour remédier à ce problème, nous avons implémenté une nouvelle méthode nommée \texttt{sendNoneToOutputs()} qui envoie automatiquement "None" à chaque output du widget en utilisant l'\textit{attribut de classe} "outputs". Un appel à cette méthode vient donc remplacer les envois individuels à chaque \textit{output}, ce qui minimise le risque d'introduire des erreurs en implémentant manuellement ces lignes. Le code finalement placé dans \texttt{TextableUtils.py} est comme suit:
 
 \begin{minted}{python}
     def sendNoneToOutputs(self):
