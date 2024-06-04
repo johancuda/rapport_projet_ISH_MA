@@ -32,12 +32,12 @@ Ce projet reprend le travail de \textit{threading} des widgets de Orange Textabl
 
 \subsection{Contexte}
 
-\href{http://textable.io/}{Textable} est un add-on du logiciel \href{https://orangedatamining.com/}{Orange} qui permet d'analyser des textes de manière visuelle \footnote{Xanthos, Aris (2014). Textable: programmation visuelle pour l’analyse de données textuelles. In Actes des 12èmes Journées internationales d’analyse statistique des données textuelles (JADT 2014), pp. 691-703. \href{http://lexicometrica.univ-paris3.fr/jadt/jadt2014/01-ACTES/57-JADT2014.pdf}{Read online}}. Il est composé de widgets développés en Python qui ont récemment été modifiés par Antonin Schnyder pour optimiser leur processus. En effet, l'interface des widgets se bloque pendant les traitements de données conséquents et leurs performances peuvent être optimisées, c'est pourquoi Antonin Schnyder a modifié ces widgets pour ajouter une logique de \textit{threading} \footnote{À ce sujet voir \href{https://realpython.com/intro-to-python-threading/}{An Intro to Threading in Python}.} qui suit les recommandations de Orange \footnote{Le tutoriel de Orange à ce propos est disponible \href{https://orange3.readthedocs.io/projects/orange-development/en/latest/tutorial-responsive-gui.html}{ici}.}.\newline
+\href{http://textable.io/}{Textable} est un add-on du logiciel \href{https://orangedatamining.com/}{Orange} qui permet d'analyser des textes de manière visuelle \footnote{Xanthos, Aris (2014). Textable: programmation visuelle pour l’analyse de données textuelles. In Actes des 12èmes Journées internationales d’analyse statistique des données textuelles (JADT 2014), pp. 691-703. \href{http://lexicometrica.univ-paris3.fr/jadt/jadt2014/01-ACTES/57-JADT2014.pdf}{Read online}}. Il est composé de widgets développés en Python qui ont récemment été modifiés par Antonin Schnyder pour optimiser leur processus. En effet, l'interface des widgets se bloquait pendant les traitements de données et leurs performances pouvaient être optimisées, c'est pourquoi Antonin Schnyder a modifié ces widgets pour ajouter une logique de \textit{threading} \footnote{À ce sujet voir \href{https://realpython.com/intro-to-python-threading/}{An Intro to Threading in Python}.} qui suit les recommandations de Orange \footnote{Le tutoriel de Orange à ce propos est disponible \href{https://orange3.readthedocs.io/projects/orange-development/en/latest/tutorial-responsive-gui.html}{ici}.}.\newline
 
-Dans ce travail, nous proposons de partir du travail effectué par Antonin Schnyder en remontant d'un étage – dans la hiérarchie de classes de Textable – la logique de \textit{threading}. Nous avons identifié qu'une grande partie du code qui permet la mise en place du \textit{threading} se répète dans les widgets, nous avons donc modifié  leur architecture pour faire en sorte que les éléments liés au \textit{threading} soient hérités au travers de la super-classe \textbf{OWTaxtableBaseWidget}.
+Dans ce travail, nous proposons de partir du travail effectué par Antonin Schnyder en remontant d'un étage – dans la hiérarchie de classes de Textable – la logique de \textit{threading}. Nous avons identifié qu'une grande partie du code qui permet la mise en place du \textit{threading} se répète dans les widgets, nous avons donc modifié  leur architecture pour faire en sorte que les éléments liés au \textit{threading} soient hérités au travers de la super-classe \textbf{OWTextableBaseWidget}.
 \newline
 
-Nous commencerons par discuter rapidement de ce qu'est le \textit{threading} puis par expliciter la structure du add-on \textit{Textable} ainsi que d'un widget typique pour mieux comprendre leur fonctionnement. Ensuite, nous listerons les éléments que nous avons identifiés comme possiblement remontables, en mentionnant ceux qui ont directement pu être remonter et en décrivant les modifications effectuées sur ceux qui ne le pouvaient pas. Nous discuterons au fur et à mesure des divers problèmes rencontrés pendant l'implémentation. Finalement, Nous continuerons ce rapport en proposant un tutoriel de développement de widgets qui permet d'exploiter cette nouvelle architecture ainsi que d'assurer en partie l'uniformité des futures widgets qui seront ajoutés à \textit{Textable}. Ce tutoriel reprendra en partie le \href{https://docs.google.com/document/d/1QtXm2aYMZXAyM7mfBTqxt_XrTNFqC7e3aqy7OC1A_18/edit}{tutoriel fourni par Antonin Schnyder}.
+Nous commencerons par discuter rapidement de ce qu'est le \textit{threading}, puis par expliciter la structure du add-on \textit{Textable} ainsi que d'un widget typique pour mieux comprendre leur fonctionnement. Ensuite, nous listerons les éléments que nous avons identifiés comme possiblement remontables, en mentionnant ceux qui ont directement pu être remonter et en décrivant les modifications effectuées sur ceux qui ne le pouvaient pas. Ce faisant, nous discuterons des divers problèmes rencontrés pendant l'implémentation. Nous termienrons ce rapport en proposant un tutoriel de développement de widget qui permet d'exploiter cette nouvelle architecture ainsi que d'assurer en partie l'uniformité des futures widgets qui seront ajoutés à \textit{Textable}. Ce tutoriel reprendra en partie le \href{https://docs.google.com/document/d/1QtXm2aYMZXAyM7mfBTqxt_XrTNFqC7e3aqy7OC1A_18/edit}{tutoriel fourni par Antonin Schnyder}.
 
 \subsection{Qu'est-ce que le \textit{threading}?}
 
@@ -124,7 +124,7 @@ La structure générale peut varier selon les widgets mais nous avons ici les é
 
 \section{Analyse des widgets et implémentation}
 
-Nous avons commencé – sur recommandation d'Aris Xantos – par analyser les deux widgets \texttt{Count} et \texttt{Preprocess} car ils sont assez représentatifs de deux types de widgets courants dans \textit{Textable}. Nous avons donc systématiquement repéré tous les éléments liés au \textit{threading} pour ensuite évaluer s'ils étaient remontables dans la classe parente \textbf{OWTextableBaseWidget} ou non. Dans la suite de cette section, nous adopterons les conventions suivantes : 
+Nous avons commencé – sur recommandation d'Aris Xantos – par analyser les deux widgets \texttt{Count} et \texttt{Preprocess} car ils sont assez représentatifs de deux types de widgets courants dans \textit{Textable}. Nous avons donc systématiquement repéré tous les éléments liés au \textit{threading} dans ces deux widgets pour ensuite évaluer s'ils étaient remontables dans la classe parente \textbf{OWTextableBaseWidget} ou non. Nous avons continué par évaluer si nos observations se prolongeait aux autres widgets. Dans la suite de cette section, nous adopterons les conventions suivantes : 
 
 \begin{itemize}
     \item \texttt{Nom\_Du\_Widget\_Thread} pour nommer la version du widget développée par Antonin Schnyder (par exemple \texttt{ConvertThread} dans le cas du widget \texttt{Convert})
@@ -141,7 +141,7 @@ Nous allons ici étudier tous les éléments présents dans les widgets créés 
 Pour afficher certaines informations sur l'interface (par exemple des messages dans l'\texttt{InfoBox} ou l'avancée de la \texttt{ProgressBar}) pendant le processus d'un widget \textit{threadé}, il est nécessaire de définir des signaux (comme \textit{attributs de classe}) et de les connecter à des slots (qui sont des méthodes qui seront explicitées dans la prochaine section), ce qui permettra aux \textit{worker threads} de communiquer avec l'interface du widget d'une manière \textit{thread safe} (i.e. qui prend en compte l'exécution des \textit{threads} et qui ne tente pas de forcer l'\textit{update} de l'UI). 
 \newline
 
-Prenons par exemple du code présent dans le widget \texttt{CategoryThread}:
+Exemple du code présent dans le widget \texttt{CategoryThread}:
 
 
 \begin{minted}{python}
@@ -171,7 +171,7 @@ Prenons par exemple du code présent dans le widget \texttt{CategoryThread}:
 \end{minted}
 
 Tous les widgets n'ont pas forcément besoin de tous les signaux \footnote{À ce sujet voir le \href{https://docs.google.com/document/d/1QtXm2aYMZXAyM7mfBTqxt_XrTNFqC7e3aqy7OC1A_18/edit}{tutoriel} D'antonin Schnyder.}, nous avons pourtant décidé de remonter les trois signaux comme attributs de la classe \textbf{OWTextableBaseWidget} en partant du principe que de faire hériter les trois signaux à tous les widgets ne crée pas de problème particulier et permet de standardiser le code de tous les widgets. 
-\newline
+\vspace{5mm}
 Le résultat est donc le code suivant dans \texttt{TextableUtils.py} : 
 
 \begin{minted}{python}
@@ -243,7 +243,7 @@ Tous les widgets ont à la fin de leur constructeur la série de trois opératio
 
 \end{minted}
 
-Ces opérations permettent de gérer les \textit{threads} et de définir la \textit{variable d'instance} \texttt{cancel\_operation} qui est utilisée pour annuler le processus d'un widget. Elle ont été remontée dans le constructeur de la classe \textbf{OWTextableBaseWidget} : 
+Ces opérations permettent de gérer les \textit{threads} et de définir la \textit{variable d'instance} \texttt{cancel\_operation} qui est utilisée pour annuler le processus d'un widget. Elles ont été remontées dans le constructeur de la classe \textbf{OWTextableBaseWidget} : 
 
 \begin{minted}{python}
     class OWTextableBaseWidget(widget.OWWidget):
@@ -289,7 +289,7 @@ Chaque widget conserve donc l'importation suivante ajoutée par Antonin Schnyder
 
 Elle sera utilisée plus bas dans ce travail pour les processus principaux des widgets.
 
-\texttt{TextableUtils.py} récupère quant à lui des importations suivantes en lien avec le \textit{threading}:
+\texttt{TextableUtils.py} récupère quant à lui les importations suivantes en lien avec le \textit{threading}:
 
 \begin{minted}{python}
     # Threading
@@ -316,7 +316,7 @@ La méthode \texttt{cancel()} est appelée lorsque l'utilisateur.ice annule l'op
     \item Envoyer un message d'annulation à l'utilisateur.ice
     \item Rendre l'UI du widget à nouveau modifiable \footnote{Nous reviendrons sur ce point dans la section sur \texttt{manageGuiVisibility()}.}
 \end{itemize}
-
+\vspace{5mm}
 Dans le cas du widget \texttt{CountThread}, la méthode \texttt{cancel()} se présente comme suit:
 
 \begin{minted}{python}
@@ -540,7 +540,7 @@ Le code ci-dessus est donc remplacé par :
         self.threading(threaded_function)
 \end{minted}
 
-La méthode \texttt{threading()} est implémentée dans \texttt{TextableUtils.py} : 
+La méthode \texttt{threading()} est quant à elle implémentée dans \texttt{TextableUtils.py} : 
 
 \begin{minted}{python}
     def threading(self, threaded_function):
@@ -629,7 +629,7 @@ Nous pouvons donc repérer dans cette méthode :
     \item Un appel à \texttt{manageGuiVisibility()} pour réactiver l'interface du widget
 \end{itemize}
 
-Or, en observant les différentes méthodes décorées \footnote{Au sujet des décorateurs Python, vous référer à \href{https://www.geeksforgeeks.org/decorators-in-python/}{cette page}.} \texttt{\_task\_finished)()} des différents widgets, nous avons remarqué que les seuls éléments qui diffèrent sont le contenu du premier \texttt{try} ainsi que le type d'erreurs géré par le \texttt{except}. Nous avons donc décidé, pour pouvoir remonter une partie de ce code dans \texttt{TextableUtils.py} et alléger le contenu des widgets, de créer notre propre décorateur qui permet d'entourer la partie de traitement des données (propre à chaque widget) des textes et gestions d'erreurs assez généraux. Ce décorateur est hérité de \textbf{OWTextableBaseWidget} et permet de conserver uniquement la partie de \texttt{\_task\_finished()} concernant le traitement du résultat et l'envoi aux \textit{outputs} dans le widget.
+Or, en observant les différentes méthodes décorées \footnote{Au sujet des décorateurs Python, vous référer à \href{https://www.geeksforgeeks.org/decorators-in-python/}{cette page}.} \texttt{\_task\_finished()} des différents widgets, nous avons remarqué que les seuls éléments qui diffèrent sont le contenu du premier \texttt{try} ainsi que le type d'erreurs géré par le \texttt{except}. Nous avons donc décidé, pour pouvoir remonter une partie de ce code dans \texttt{TextableUtils.py} et alléger le contenu des widgets, de créer notre propre décorateur qui permet d'entourer la partie de traitement des données (propre à chaque widget) des textes et gestions d'erreurs assez généraux. Ce décorateur est hérité de \textbf{OWTextableBaseWidget} et permet de conserver uniquement la partie de \texttt{\_task\_finished()} concernant le traitement du résultat et l'envoi aux \textit{outputs} dans le widget.
 
 Concrètement, la méthode \texttt{\_task\_finished()} du widget est remplacée par une nouvelle méthode \texttt{task\_finished()} (sans le premier \textit{underscore}) : 
 
@@ -745,7 +745,7 @@ Le constructeur de la classe doit notre widget doit comporter les éléments sui
         )
     \end{minted}
     \item Les \texttt{AdvancedSettings} (si nécessaires) doivent être déclarés au moyen de la méthode définie à cet effet:
-    \mint{python}|self.advancedSettings = self.create\_advancedSettings()|
+    \mint{python}|self.advancedSettings = self.create_advancedSettings()|
     \item Les éléments principaux de l'interface (qui sont censés être affectés à la \texttt{controlArea}) doivent être déclarés au moyen de la méthode \texttt{create\_widgetbox()} (par exemple ici dans le cas de \texttt{optionsBox}: 
     \begin{minted}{python}
         # (Advanced) options box...
@@ -766,7 +766,7 @@ Il existe ici deux possibilités \footnote{Cette partie du tutoriel est en grand
     \item La méthode sendData() appelle des fonctions d’un autre module (p.ex. LTTL). Dans ce cas, c'est la fonction de LTTL qui s’exécutera dans un worker thread.
     \item La méthode sendData() fait une série d’opérations sans appeler de fonctions d’un autre module (p.ex. dans le cas des Widgets TextFiles et URLs). Dans ce cas, il faut créer une nouvelle méthode dans laquelle s'exécuteront les opérations qui prennent du temps. Elle sera exécutée dans un worker thread. Ce cas est aussi le plus fréquent dans la création de widgets par des étudiant.x.e.s. (À ce propos voir la prochaine section)
 \end{itemize}
-
+\vspace{5mm}
 Dans les deux cas, il est nécessaire de définir dans \texttt{sendData()} une fonction \texttt{threaded\_function} de la manière suivante: 
 
 \begin{minted}{python}
@@ -781,14 +781,85 @@ C'est cet appel qui lance effectivement le processus du widget.
 
 \subsection{Utilisation des signaux}
 
-Dans le cas le plus courant pour des widgets \texttt{Prototypes} (i.e. des widgets développés par des étudiant.x.e.s), il est nécessaire de créer une fonction supplémentaire qui sera appelée dans \texttt{sendData()}. Il faut faire attention ici à quelques éléments.
+Dans le cas le plus courant pour des widgets \texttt{Prototypes} (i.e. des widgets développés par des étudiant.x.e.s), il est nécessaire de créer une fonction supplémentaire qui sera appelée dans \texttt{sendData()} et qui contiendra le processus effectif du widget. Il faut faire attention ici à quelques éléments.
 
 Le premier est de bien utiliser les couples \textit{signaux}/\textit{slots} pour mettre à jour régulièrement la barre de progression ou les messages de l'\texttt{InfoBox} depuis cette fonction. Ceci permet de garantir une mise à jour \textit{thread safe} de ces informations. 
-Un deuxième élément important est de vérifier à intervalles réguliers dans les processus longs (typiquement les boucles) si le booléen \texttt{cancel\_operation} a été modifié. Cela permet d'éviter que la boucle tourne trop longtemps avant de s'arrêter si l'utilisateur.ice a stoppé l'exécution du programme. Un bon exemple de ceci est le widget \texttt{ConvertThreadJohan}.
+Un deuxième élément important est de vérifier à intervalles réguliers dans les processus longs (typiquement les boucles) si le booléen \texttt{cancel\_operation} a été modifié. Cela permet d'éviter que la boucle tourne trop longtemps avant de s'arrêter si l'utilisateur.ice a stoppé l'exécution du programme. Un bon exemple de ceci est le widget \texttt{ConvertThreadJohan}:
+
+\begin{minted}{python}
+    def process_data(self, caller, transformed_table, numIterations):
+        """ Process data in a worker thread
+        instead of the main thread so that
+        the operations can be cancelled """
+
+        # ...
+
+            # Check if thread was cancelled
+            if not transformed_table:
+                caller.signal_prog.emit(100, False)
+                return
+
+            # ...
+
+            # Normalize if needed...
+            if self.normalize:
+                transformed_table = transformed_table.to_normalized(
+                    mode=self.normalizeMode,
+                    type=self.normalizeType.lower(),
+                    caller=self,
+                )
+                
+            # Check if thread was cancelled
+            if not transformed_table:
+                caller.signal_prog.emit(100, False)
+                return
+
+            # Convert if needed...
+            elif self.convert:
+                if self.conversionType == 'document frequency':
+                    transformed_table = transformed_table.to_document_frequency(
+                        caller=self,
+                    )
+                elif self.conversionType == 'association matrix':
+                    transformed_table = transformed_table.to_association_matrix(
+                        bias=self.associationBias,
+                        caller=self,
+                    )
+                    
+            # Check if thread was cancelled
+            if not transformed_table:
+                caller.signal_prog.emit(100, False)
+                return
+
+            # ...
+
+        # Post-processing: Orange table
+        caller.signal_text.emit('Step 2/3: Post-processing...', 'warning')
+        caller.signal_prog.emit(1, True)
+
+        orangeTable = transformed_table.to_orange_table(caller=self)
+        
+        # Check if thread was cancelled
+        if not orangeTable:
+            caller.signal_prog.emit(100, False)
+            return
+        
+        # Post-processing: Output string
+        caller.signal_text.emit('Step 3/3: Post-processing...', 'warning')
+        caller.signal_prog.emit(1, True)
+
+        # ...
+            return
+        
+        return transformed_table, orangeTable, outputString
+
+\end{minted}
+
+Nous pouvons voir dans cet exemple les tests effectués à intervalles réguliers ainsi que l'utilisation des signaux pour envoyer des messages depuis le \textit{worker thread}.
 
 \subsection{Méthode \texttt{task\_finished()}}
 
-Il faut définir une fonction \texttt{task\_finished} de la manière suvante :
+Il faut définir une fonction \texttt{task\_finished} de la manière suivante :
 
 \begin{minted}{python}
     @OWTextableBaseWidget.task_decorator
@@ -817,9 +888,9 @@ Cette fonction doit être décorée comme l'extrait ci-dessus et doit avoir deux
 
 \section{Prochaines étapes et conclusion}
 
-Dans ce rapport, nous avons donc détaillé les modifications apportées au add-on \textit{Textable} dans le but de déplacer les éléments de \textit{threading} pour qu'ils soient hérités au travers de la classe \textbf{OWTextableBaseWidget}
+Dans ce rapport, nous avons donc détaillé les modifications apportées au add-on \textit{Textable} dans le but de déplacer les éléments de \textit{threading} pour qu'ils soient hérités au travers de la classe \textbf{OWTextableBaseWidget}.
 
-Nous avons donc réussi à extraire des widgets la plupart des éléments en lien avec le \textit{threading}: ceci nous permet d'alléger le processus de développement de nouveaux widgets ainsi que de faciliter la maintenance des widgets existants. Nous n'avons malheureusement pas pu inclure dans ce travail toutes les pistes explorées mais nous espérons avoir fourni un bon aperçu du travail effectué.
+Nous avons réussi à extraire des widgets la plupart des éléments en lien avec le \textit{threading}: ceci nous permet d'alléger le processus de développement de nouveaux widgets ainsi que de faciliter la maintenance des widgets existants. Nous n'avons malheureusement pas pu inclure dans ce travail toutes les pistes explorées mais nous espérons avoir fourni un bon aperçu du travail effectué.
 
 Ce travail pourrait bien sûr être prolongé, par exemple en implémentant un nouveau système de gestions des erreurs. Il serait aussi intéressant de tester notre nouvelle architecture sur les widgets \texttt{Prototypes} retravaillés par Olivia Verbrugge dans le cadre de son Projet en informatique pour les sciences humaines. Finalement, certains widgets n'ayant pas été \textit{threadés}, il serait très intéressant – et assurément ardu – d'essayer de le faire dans la nouvelle architecture que nous proposons.
 
