@@ -384,7 +384,7 @@ Pour remédier à ce problème, nous avons implémenté une nouvelle méthode no
 
 La dernière partie de cette méthode s'occupant de l'affichage du widget a été récupérée du widget \texttt{SelectThread}. Ces lignes ajoutent un petit timer nécessaire dans le cas de ce widget particulier, nous l'avons donc ajouté à la méthode \texttt{cancel()} de \texttt{TextableUils.py} après discussion avec Antonin Schnyder.
 
-\subsubsection{Méthode \texttt{manageGuiVisibility()}
+\subsubsection{Méthode \texttt{manageGuiVisibility()}}
 
 La méthode \texttt{manageGuiVisibility()} permet de désactiver ou d'activer certaines parties de l'interface suivant ce que fait le widget (par exemple, les paramètres du widget sont désactivés pendant les calculs, ou encore le bouton \texttt{cancel} est grisé pendant sa phase de configuration). 
 Présente dans chaque widget, elle diffère pourtant selon les occurrences. En effet, les widgets ne sont pas tous construits de la même manière et leur interface peut varier. Il est évident que vu le nombre de lignes redondantes que cette méthode comporte, il était nécessaire de la remonter dans \texttt{TextableUtils.py}.
@@ -813,17 +813,14 @@ Il faut définir une fonction \texttt{task\_finished} de la manière suvante :
         self.infoBox.setText(…) # Message de réussite
 \end{minted}
 
-Cette fonction doit être décorée avec le décorateur \mint{python}|@OWTextableBaseWidget.task_decorator| et doit avoir deux arguments : \texttt{self} et \texttt{f}. Elle contiendra ensuite le traitement des données et l'envoie vers les différents \textit{outputs}.
+Cette fonction doit être décorée comme l'extrait ci-dessus et doit avoir deux arguments : \texttt{self} et \texttt{f}. Elle contiendra ensuite le traitement des données et l'envoie vers les différents \textit{outputs}.
 
 \section{Prochaines étapes et conclusion}
 
-Nous avons donc réussi extrait des widgets la plupart des éléments en lien avec le \textit{threading}: ceci nous permet d'alléger le processus de développement de nouveaux widgets ainsi que de faciliter la maintenance des widgets existants. Nous n'avons malheureusement pas pu inclure dans ce travail toutes les pistes explorées mais nous espérons avoir fourni un bon aperçu du travail effectué.
+Dans ce rapport, nous avons donc détaillé les modifications apportées au add-on \textit{Textable} dans le but de déplacer les éléments de \textit{threading} pour qu'ils soient hérités au travers de la classe \textbf{OWTextableBaseWidget}
 
-Ce travail pourrait bien sûr être prolongé, par exemple en implémentant un nouveau système de gestions des erreurs. Il serait aussi intéressant de tester notre nouvelle architecture sur les widgets \texttt{Prototypes} retravaillés par Olivia Verbrugge dans le cadre de son Projet en informatique pour les sciences humaines.
+Nous avons donc réussi à extraire des widgets la plupart des éléments en lien avec le \textit{threading}: ceci nous permet d'alléger le processus de développement de nouveaux widgets ainsi que de faciliter la maintenance des widgets existants. Nous n'avons malheureusement pas pu inclure dans ce travail toutes les pistes explorées mais nous espérons avoir fourni un bon aperçu du travail effectué.
 
-\section{Références}
-
-peut-être
-
+Ce travail pourrait bien sûr être prolongé, par exemple en implémentant un nouveau système de gestions des erreurs. Il serait aussi intéressant de tester notre nouvelle architecture sur les widgets \texttt{Prototypes} retravaillés par Olivia Verbrugge dans le cadre de son Projet en informatique pour les sciences humaines. Finalement, certains widgets n'ayant pas été \textit{threadés}, il serait très intéressant – et assurément ardu – d'essayer de le faire dans la nouvelle architecture que nous proposons.
 
 \end{document}
